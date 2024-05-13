@@ -66,12 +66,16 @@ def main():
     # -------------------------------------------------------------------------------------
     log.info("Validate the documents are loaded correctly")
     cur = connection_to_hana.cursor()
-    cur.execute(f"SELECT VEC_TEXT, VEC_META, TO_NVARCHAR(VEC_VECTOR) FROM {TABLE_NAME} LIMIT 1")
+    cur.execute(
+        f"SELECT VEC_TEXT, VEC_META, TO_NVARCHAR(VEC_VECTOR) FROM {TABLE_NAME} LIMIT 1"
+    )
 
     rows = cur.fetchall()
     print(rows[0][0])  # The text
     print(rows[0][1])  # The metadata
-    print(f"{rows[0][2][:100]}...")  # The vector (printing only first 100 characters as it is quite long)
+    print(
+        f"{rows[0][2][:100]}..."
+    )  # The vector (printing only first 100 characters as it is quite long)
     cur.close()
 
     log.success("Data ingestion completed.")

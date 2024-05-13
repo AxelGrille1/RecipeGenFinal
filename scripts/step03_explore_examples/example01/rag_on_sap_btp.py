@@ -15,6 +15,7 @@ import logging
 log = logging.getLogger(__name__)
 initLogger()
 
+
 def main():
     # Load environment variables
     load_dotenv(dotenv_path=str(FILE_ENV), verbose=True)
@@ -52,7 +53,7 @@ def main():
     # -------------------------------------------------------------------------------------
 
     # Create a retriever instance of the vector store
-    retriever = db.as_retriever(search_kwargs={"k": 2})
+    retriever = db.as_retriever(search_kwargs={"k": 5})
     log.info("Retriever instance of the vector store created")
 
     # -------------------------------------------------------------------------------------
@@ -61,8 +62,8 @@ def main():
 
     # Create prompt template
     prompt_template = """
-    You are a helpful assistant. You are provided multiple context items that are related to the prompt you have to answer.
-    Use the following pieces of context to answer the question at the end. If the answer is not in the context, reply exactly with "I don't know".
+    You are a recipe generator. Generate similar recipes using existing ones.
+    Use the following pieces of context to answer the question at the end.".
 
     ```
     {context}
@@ -90,34 +91,39 @@ def main():
     # Provide the response to the user
     # -------------------------------------------------------------------------------------
 
-    log.header("Welcome to the interactive Q&A session! Type 'exit' to end the session.")  
-      
-    while True:  
-        # Prompt the user for a question  
-        question = input("Please ask a question or type 'exit' to leave: ")  
-          
-        # Check if the user wants to exit  
-        if question.lower() == 'exit':  
-            print("Goodbye!")  
-            break  
-  
-        log.info(f"Asking a question: {question}", )  
-          
-        # Invoke the conversational retrieval chain with the user's question  
-        result = qa_chain.invoke({"question": question})  
-          
-        # Output the answer from LLM  
-        log.success("Answer from LLM:")  
-        print(result["answer"])  
-          
-        # Output the source document chunks used for the answer  
+    log.header(
+        "Welcome to the interactive Q&A session! Type 'exit' to end the session."
+    )
+
+    while True:
+        # Prompt the user for a question
+        question = input("Please ask a question or type 'exit' to leave: ")
+
+        # Check if the user wants to exit
+        if question.lower() == "exit":
+            print("Goodbye!")
+            break
+
+        log.info(
+            f"Asking a question: {question}",
+        )
+
+        # Invoke the conversational retrieval chain with the user's question
+        result = qa_chain.invoke({"question": question})
+
+        # Output the answer from LLM
+        log.success("Answer from LLM:")
+        print(result["answer"])
+
+        # Output the source document chunks used for the answer
         source_docs = result["source_documents"]
         print("================")
-        log.info(f"Number of used source document chunks: {len(source_docs)}")  
+        log.info(f"Number of used source document chunks: {len(source_docs)}")
         for doc in source_docs:
             print("-" * 80)
             log.info(doc.page_content)
             log.info(doc.metadata)
+
 
 if __name__ == "__main__":
     main()
