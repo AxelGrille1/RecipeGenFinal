@@ -11,12 +11,16 @@ from langchain.memory import ConversationBufferMemory
 from library.data.hana_db import get_connection_to_hana_db
 from dotenv import load_dotenv
 import logging
+from firebase_admin import credentials, initialize_app, firestore
+import json
+import random
 
 log = logging.getLogger(__name__)
 initLogger()
 
 
-def main():
+def main(input, uuid):
+    # def main():
     # Load environment variables
     load_dotenv(dotenv_path=str(FILE_ENV), verbose=True)
 
@@ -49,7 +53,7 @@ def main():
 
     # -------------------------------------------------------------------------------------
     # Fetch the data from the HANA DB and use it to answer the question using the
-    # best 2 matching information chunks
+    # best 5 matching information chunks
     # -------------------------------------------------------------------------------------
 
     # Create a retriever instance of the vector store
@@ -63,7 +67,14 @@ def main():
     # Create prompt template
     prompt_template = """
     You are a recipe generator. Generate similar recipes using existing ones.
-    Use the following pieces of context to answer the question at the end.".
+    Scale the recipes for 100 Kg or 100L. Use the metric system. Give all the steps on an industrial way.
+    Use the following pieces of context to answer the question at the end.
+    Your answer will be formatted as json files containing the following fields: UUID, allergens, ingredients, nutrients, price, recipe, recipe_name, sustainability_index.
+    You will let the uuid empty at this step, and randomly assign a sustainability index between 1 and 5.
+    Randomly assign a price and a numeric value for nutrients (carbohydrates, fats, proteins) in a single string.
+    All the fields are strings.
+    Generate a single recipe.
+    Create an original name for the recipe's name, choose marketable names, no industrial names.".
 
     ```
     {context}
@@ -91,13 +102,12 @@ def main():
     # Provide the response to the user
     # -------------------------------------------------------------------------------------
 
-    log.header(
-        "Welcome to the interactive Q&A session! Type 'exit' to end the session."
-    )
+    log.header("Welcome to RecipeGen! Type 'exit' to end the session")
 
     while True:
         # Prompt the user for a question
-        question = input("Please ask a question or type 'exit' to leave: ")
+        # question = input("Recipe to generate: ")
+        question = f"generate a recipe of {input}, fill the uuid field with {uuid}"
 
         # Check if the user wants to exit
         if question.lower() == "exit":
@@ -112,18 +122,131 @@ def main():
         result = qa_chain.invoke({"question": question})
 
         # Output the answer from LLM
-        log.success("Answer from LLM:")
-        print(result["answer"])
+        # log.success("Answer from LLM:")
+        # print(result["answer"])
+        json_result = result["answer"]
 
         # Output the source document chunks used for the answer
         source_docs = result["source_documents"]
+
         print("================")
         log.info(f"Number of used source document chunks: {len(source_docs)}")
+
+        content = []
         for doc in source_docs:
             print("-" * 80)
             log.info(doc.page_content)
-            log.info(doc.metadata)
+            # log.info(doc.metadata)
+            content.append(doc.page_content)
+
+        return content, json_result
+
+
+def init_firebase():
+    service_account_key_file = (
+        "scripts/step03_explore_examples/example01/firebase_credentials.json"
+    )
+    cred = credentials.Certificate(service_account_key_file)
+    app = initialize_app(
+        cred,
+        options={
+            "databaseURL": "https://recipegen-305f4-default-rtdb.europe-west1.firebasedatabase.app/"
+        },
+    )
+    return app
+
+
+def push_to_database(json_article):
+    db = firestore.client()
+    articles_ref = db.collection("Outputs")
+    data = json.loads(json_article)
+    try:
+        result = articles_ref.add(data)
+        print("Document added successfully.")
+    except json.JSONDecodeError as e:
+        print("Error decoding JSON:", e)
+    except Exception as e:
+        print("Error:", e)
+        return result
+
+
+def get_recipe_name():
+    db = firestore.client()
+    ref = db.collection("Inputs")
+    documents = ref.stream()
+    for doc in documents:
+        return doc.get("recipe_name")
+
+
+def get_uuid():
+    db = firestore.client()
+    ref = db.collection("Inputs")
+    documents = ref.stream()
+    for doc in documents:
+        return doc.get("UUID")
+
+
+def transform_json(json_file, sources):
+    # print("json file: ", json_file)
+    # json_file = json_file[0]
+    # json_file = json_file.replace("json)", "")
+    # json_file = json_file.replace("```", "")
+
+    # print("json file modified: ", json_file)
+
+    if isinstance(json_file, str):
+        recipe_dict = json.loads(json_file)
+    else:
+        json_article = json_file[0]
+        recipe_dict = json.loads(json_article)
+
+    price = round(random.uniform(5, 7), 2) * 100
+    recipe_dict["price"] = f"${price}"
+
+    # recipe_dict["ingredients"] = recipe_dict["ingredients"].replace(",", "\n")
+
+    recipe_dict["sources"] = str(sources)
+    # recipe_dict["sources"] = recipe_dict["sources"].lower().replace("chunk", "recipe")
+
+    sustainability_score = int(recipe_dict["sustainability_index"])
+    score = "\u2605" * sustainability_score + "\u2606" * (5 - sustainability_score)
+    recipe_dict["sustainability_index"] = score
+
+    # recipe_dict["nutrients"] = recipe_dict["nutrients"].replace(",", "\n")
+    return json.dumps(recipe_dict, indent=4)
+
+
+def parse_json(json_file):
+    if json_file.startswith("```json") and json_file.endswith("```"):
+        json_content = json_file[len("```json") : -len("```")]
+        # print("parsed json: ", json_content)
+        return json_content
+    else:
+        return json_file
+
+
+def get_data():
+    input_recipe = get_recipe_name()
+    uuid = get_uuid()
+    return input_recipe, uuid
 
 
 if __name__ == "__main__":
-    main()
+    # Init the database and get values from it
+    init_firebase()
+
+    input, uuid = get_data()
+
+    for _ in range(3):
+        # Execute the RAG
+        sources, json_result = main(input, uuid)
+
+        # print("Raw Json", json_result)
+        # Transform data to make it fancier
+        transformed_json = transform_json(json_result, sources)
+        parsed_json = parse_json(transformed_json)
+
+        print("Answer from LLM:\n", parsed_json)
+
+        # Push to database
+        push_to_database(parsed_json)
