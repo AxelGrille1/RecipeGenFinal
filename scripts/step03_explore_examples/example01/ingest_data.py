@@ -1,14 +1,15 @@
 from gen_ai_hub.proxy.core.proxy_clients import get_proxy_client
 from gen_ai_hub.proxy.langchain.openai import OpenAIEmbeddings
 from langchain_community.vectorstores.hanavector import HanaDB
-from langchain_community.document_loaders import GitLoader
-from library.constants.folders import FILE_ENV
+
+# from langchain_community.document_loaders import GitLoader
+from library.constants.folders import FILE_ENV, FOLDER_DOCS_RAG_SOURCES
 from library.constants.table_names import TABLE_NAME
-from library.data.data_store import split_docs_into_chunks
+from library.data.data_store import split_docs_into_chunks, load_docs
 from library.data.hana_db import get_connection_to_hana_db
 from library.util.logging import initLogger
 
-
+from pathlib import Path
 from dotenv import load_dotenv
 import logging
 
@@ -24,15 +25,18 @@ def main():
     log.header("Load the documents into the HANA DB to get them vectorized")
 
     # Load the documents from a GitHub repository
-    loader = GitLoader(
-        clone_url="https://github.com/SAP/terraform-provider-btp",
-        repo_path="./gen/docs/",
-        file_filter=lambda file_path: file_path.endswith(".md"),
-        branch="main",
-    )
-    log.info("Getting the documents from the GitHub repository ...")
-    tf_docs_all = loader.load()
+    # loader = GitLoader(
+    #     clone_url="https://github.com/SAP/terraform-provider-btp",
+    #     repo_path="./gen/docs/",
+    #     file_filter=lambda file_path: file_path.endswith(".json"),
+    #     branch="main",
+    # )
+    # log.info("Getting the documents from the GitHub repository ...")
+    # tf_docs_all = loader.load()
 
+    tf_docs_all = load_docs(
+        tf_source_path=Path(FOLDER_DOCS_RAG_SOURCES, "tf_provider_btp").resolve()
+    )
     # Split the documents into chunks
     chunks = split_docs_into_chunks(documents=tf_docs_all)
 
