@@ -146,8 +146,8 @@ def push_to_database(json_article):
 
 def status():
     url = "https://x8ki-letl-twmt.n7.xano.io/api:Maomi2EO/recipegensignal/3"
-    max_retries = 5
-    retry_delay = 5  # seconds
+    max_retries = 1000000
+    retry_delay = 10
 
     for attempt in range(max_retries):
         response = requests.get(url)
@@ -155,7 +155,8 @@ def status():
         if response.status_code == 200:
             data = response.json()
             prompt = data["prompt"]
-            return prompt
+            genid = data["genid"]
+            return prompt, genid
         else:
             print(
                 f"Failed to get the input, re-trying in {retry_delay} seconds... (Attempt {attempt + 1}/{max_retries})"
@@ -244,10 +245,11 @@ def get_data():
 if __name__ == "__main__":
     init_firebase()
     stored_uuid = ""
+    # stored_input = ""
 
     while True:
-        uuid = get_data()
-        input = status()
+        input, uuid = status()
+        delay = 3  # seconds
 
         if uuid != stored_uuid:
             stored_uuid = uuid
@@ -260,3 +262,6 @@ if __name__ == "__main__":
                 print("Answer from LLM:\n", transformed_json)
 
                 push_to_database(transformed_json)
+            print("3 recipes done")
+
+        time.sleep(delay)
