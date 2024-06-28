@@ -14,6 +14,8 @@ import logging
 from firebase_admin import credentials, initialize_app, firestore
 import json
 import random
+import requests
+import time
 
 log = logging.getLogger(__name__)
 initLogger()
@@ -142,6 +144,29 @@ def push_to_database(json_article):
         return None
 
 
+def status():
+    url = "https://x8ki-letl-twmt.n7.xano.io/api:Maomi2EO/recipegensignal/3"
+    max_retries = 5
+    retry_delay = 5  # seconds
+
+    for attempt in range(max_retries):
+        response = requests.get(url)
+
+        if response.status_code == 200:
+            data = response.json()
+            prompt = data["prompt"]
+            return prompt
+        else:
+            print(
+                f"Failed to get the input, re-trying in {retry_delay} seconds... (Attempt {attempt + 1}/{max_retries})"
+            )
+            print("status code:", response.status_code)
+            time.sleep(retry_delay)
+
+    print("Max retries reached. Unable to get the input.")
+    return None
+
+
 def get_recipe_name():
     db = firestore.client()
     ref = db.collection("Inputs")
@@ -191,17 +216,38 @@ def parse_json(json_file):
 
 
 def get_data():
-    input_recipe = get_recipe_name()
+    # input_recipe = get_recipe_name()
     uuid = get_uuid()
-    return input_recipe, uuid
+    return uuid
 
+
+# if __name__ == "__main__":
+#     init_firebase()
+#     stored_uuid = ""
+#     stored_prompt = ""
+
+#     while True:
+#         current_prompt = status()
+#         if current_prompt is not None and current_prompt != stored_prompt:
+#             stored_prompt = current_prompt
+#             uuid = get_data()
+
+#             for _ in range(3):
+#                 sources, json_result = main(stored_prompt, uuid)
+#                 parsed_json = parse_json(json_result)
+#                 transformed_json = transform_json(parsed_json, sources)
+#                 print("Answer from LLM:\n", transformed_json)
+#                 push_to_database(transformed_json)
+
+#         time.sleep(2.1)
 
 if __name__ == "__main__":
     init_firebase()
     stored_uuid = ""
 
     while True:
-        input, uuid = get_data()
+        uuid = get_data()
+        input = status()
 
         if uuid != stored_uuid:
             stored_uuid = uuid
